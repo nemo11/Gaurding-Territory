@@ -17,19 +17,26 @@ class Env():
         self.regulator = 1
         self.K = 1               # gravitational constant
         self.relative_distance = 1
-        self.force_magnitude = self.K*(self.regulator)/(self.relative_distance)                     # the force magnitude to regulate the path
+        self.field_force_magnitude = self.K*(self.regulator)/(self.relative_distance)                     # the force magnitude to regulate the path
         # opponents force
         self.opponent_pos = []
         self.number_of_opponents = 10
-        self.opponent_force = 0
+        self.opponent_force_magnitude = 0
         self.opponent_radial_velocity = 5
         self.dt = 0.5          ##discreet time in sec
 
 ################################################
     ### Effect on the agents
-    def radial_force(self):
-        force_radial = self.force_magnitude - self.opponent_force
+    def field_radial_force(self):
+        force_radial = self.field_force_magnitude - self.opponent_force_magnitude
         return force_radial
+
+    def field_agent_control(self, agent_pos):
+        theta = atan2((pos[1] - self.gravity_point[1]),(pos[0] - self.gravity_point[0]))        #angle of the opponent with the gravity point
+        velocity_x = -(self.force_direction)*self.opponent_radial_velocity*cos(theta)
+        velocity_y = -(self.force_direction)*self.opponent_radial_velocity*sin(theta)
+
+        return velocity_x,velocity_y
 
 
 
