@@ -109,11 +109,6 @@ if __name__ == '__main__':
             # plt.show()
         plt.axis([-50,50,-50,50])
         plt.pause(0.01)
-            #legend((line1, line2, line3), ('label1', 'label2', 'label3'))
-            
         plt.clf()
-        
-            #print(vel_err,ang_err, "errors")
-            #print(u_A,"control variables of A")
         sleep(0.0100)
 
