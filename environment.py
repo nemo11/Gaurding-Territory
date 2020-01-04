@@ -1,7 +1,9 @@
 import numpy as np
 from math import sin,atan2,cos
+from time import sleep
 import random
 import matplotlib.pyplot as plt 
+import copy
 
 class Env():
     def __init__(self):
@@ -21,7 +23,7 @@ class Env():
         self.number_of_opponents = 10
         self.opponent_force = 0
         self.opponent_radial_velocity = 5
-        self.dt = 0.01          ##discreet time
+        self.dt = 0.5          ##discreet time in sec
 
     def radial_force(self):
         force_radial = self.force_magnitude - self.opponent_force
@@ -35,21 +37,28 @@ class Env():
     def opponent_model(self):
 
         if len(self.opponent_pos) != self.number_of_opponents:         
-            for i in range (self.number_of_opponents):
+            for j in range (self.number_of_opponents - len(self.opponent_pos)):
+                print("hello",j)
                 initial_pos = self.opponent_restart()
                 self.opponent_pos.append(initial_pos)
-        else:
-            for i in range (self.number_of_opponents):
-                (v_x,v_y) = self.opponent_control(self.opponent_pos[i])
+        #else:
+        for i in range (len(self.opponent_pos)):
+            (v_x,v_y) = self.opponent_control(self.opponent_pos[i])
 
-                #dynamics of the opponent
-                self.opponent_pos[i][0] = self.opponent_pos[i][0] + v_x*self.dt 
-                self.opponent_pos[i][1] = self.opponent_pos[i][1] + v_y*self.dt 
+            #dynamics of the opponent
+            self.opponent_pos[i][0] = self.opponent_pos[i][0] + v_x*self.dt 
+            self.opponent_pos[i][1] = self.opponent_pos[i][1] + v_y*self.dt 
 
-                #check if the target is nullified
-                nullify_status = self.opponent_check_if_nullified(self.opponent_pos[i])
-                if nullify_status == 1:
-                    del self.opponent_pos[i]
+            #check if the target is nullified
+        #opponent_pos_copy = copy.deepcopy(self.opponent_pos)    
+        for i in range (len(self.opponent_pos)):    
+            nullify_status = self.opponent_check_if_nullified(self.opponent_pos[i])
+            if nullify_status == 1:
+                self.opponent_pos[i] = 0
+                # initial_pos = self.opponent_restart()
+                # self.opponent_pos.append(initial_pos)
+
+        self.opponent_pos[:] = (value for value in self.opponent_pos if value != 0)        
 
         return self.opponent_pos        
 
@@ -91,11 +100,20 @@ class Env():
 ###########################*********************** Above part is the Opponent Section of the code ***************###############################
 			
 if __name__ == '__main__':
+    
     env = Env()
     while True:
         env.opponent_model()
-        for i in range (env.number_of_opponents):
-            print("hello")
+        for i in range (len(env.opponent_pos)-1):
             plt.plot(env.opponent_pos[i][0],env.opponent_pos[i][1],'r.')
-
+            # plt.show()
+        plt.axis([-50,50,-50,50])
+        plt.pause(0.01)
+            #legend((line1, line2, line3), ('label1', 'label2', 'label3'))
+            
+        plt.clf()
+        
+            #print(vel_err,ang_err, "errors")
+            #print(u_A,"control variables of A")
+        sleep(0.0100)
 
