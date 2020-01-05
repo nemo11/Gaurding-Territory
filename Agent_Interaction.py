@@ -1,53 +1,127 @@
+
+from environment_defense import Env
 import numpy as np
-from math import sin,atan2,cos,pi
+from math import sin,atan2,cos
 from time import sleep
 import random
 import matplotlib.pyplot as plt 
 import copy
-from environment_defense import Env
+import pylab
+from keras.layers import Dense
+from keras.optimizers import Adam
+from keras.models import Sequential
+from keras import backend as K
+from keras.models import load_model
+from collections import deque
+from keras.layers import Dense, Dropout, Flatten , Input
+from keras.models import Sequential
+from keras.layers import Conv2D, Conv3D, MaxPooling2D
+from keras.models import Model
+from keras import optimizers , metrics
+from keras.layers.core import Activation
+from keras.layers.merge import Concatenate
 
 class Agent_in_Env():
     def __init__(self):
-        self.numer_of_agents = 10
-        self.gravity_point = Env().gravity_point
-        self.dt = 1
-        self.agent_pos_vel = self.agent_initialize()        ## Format -> [x coord, y coord, velocity_x, velocity_y]
+        self.load_model = False
+        # actions which agent can do
+        self.action_space = [0, 1, 2, 3]
+        # get size of state and action
+        self.action_size = len(self.action_space)
+        self.state_size = 12
+        self.discount_factor = 0.99
+        self.learning_rate = 0.001
+        self.model = self.build_model()
+        self.optimizer = self.optimizers()
+        self.states, self.actions, self.rewards = [], [], []
 
-################################################
-    ### Effect of field on the agents
-    def agent_cotrol(self): 
+        # if self.load_model:
+        #     self.model.load_weights('./save_model/reinforce_trained.h5')
 
-        ## Due to control decison      
-        #theta = atan2((agent_pos_vel[1] - self.gravity_point[1]),(agent_pos_vel[0] - self.gravity_point[0]))        #angle of the opponent with the gravity point        
+    # state is input and probability of each action(policy) is output of network
+    def build_model(self):
         
-            ## TO BE WRITTEN
+        inputA=Input(shape=(self.state_size,))       
+        x_1= Dense(24,activation="relu")(inputA)
+        x1 = Dense(16,activation="relu")(x_1)
+        #x1=Flatten()(x1)
         
-        ## Due to field
-        for i in range (self.numer_of_agents):
-            field_effect = Env().field_agent_force(self.agent_pos_vel[i])
-
-            self.agent_pos_vel[i][2] = self.agent_pos_vel[i][2] + field_effect[0]*self.dt
-            self.agent_pos_vel[i][3] = self.agent_pos_vel[i][3] + field_effect[1]*self.dt
-
-            self.agent_pos_vel[i][0] = self.agent_pos_vel[i][0] + self.agent_pos_vel[i][2]*self.dt
-            self.agent_pos_vel[i][1] = self.agent_pos_vel[i][1] + self.agent_pos_vel[i][3]*self.dt
-
-        return self.agent_pos_vel
-
-    def agent_initialize(self):
+        x1 = Dense(16,activation="relu")(x1)
+        x1 = Dense(8,activation="relu")(x1)
         
-        initial_pos = []
-        #random_theta = random.randrange(0,2)
-        initial_radius = 6
+        # inputB=Input(shape=(self.input_shape_B))
+        # x_2=Conv2D(2,(1,1),activation="relu")(inputB)        
+        # x2=Conv2D(1,(3,3),activation="relu")(x_2)         
+        # x2=Flatten()(x2)
+        
+        x=Concatenate(axis=-1)([x1,x_1])
+        x=Dense(24)(x)
+        x=Activation("softmax")(x)
+        x=Dense(16)(x)
+        x=Activation("softmax")(x)
+        x=Dense(self.action_size)(x)
+        x=Activation("softmax")(x)
+        model=Model(inputs=inputA,outputs=x)
+        
+        # model = Sequential()
+        # model.add(Dense(24, input_dim=self.state_size, activation='relu'))
+        # model.add(Dense(24, activation='relu'))
+        # model.add(Dense(24, activation='tanh'))
+        # model.add(Dense(24, activation='relu'))
+        # model.add(Dense(24, activation='tanh'))
+        # model.add(Dense(self.action_size, activation='softmax'))
+        # model.summary()
+        return model
 
-        for i in range (self.numer_of_agents):
-            random_theta = random.randrange(0,2*314)/100
-            initial_pos.append([initial_radius*cos(random_theta),initial_radius*sin(random_theta),0,0])
+    # create error function and training function to update policy network
+    def optimizers(self):
+        action = K.placeholder(shape=[None, 4])
+        discounted_rewards = K.placeholder(shape=[None, ])
 
-        return initial_pos  
+        # Calculate cross entropy error function
+        action_prob = K.sum(action * self.model.output, axis=1)
+        cross_entropy = K.log(action_prob) * discounted_rewards
+        loss = -K.sum(cross_entropy)
 
-    # def agent_model(self):    
-    #     for i in range (self.numer_of_agents):
+        # create training function
+        optimizer = Adam(lr=self.learning_rate)
+        updates = optimizer.get_updates(loss,self.model.trainable_weights)
+        train = K.function([self.model.input, action, discounted_rewards], [],
+                           updates=updates)
+
+        return train
+
+    # get action from policy network
+    def get_action(self, state):
+        policy = self.model.predict(state)[0]
+        #print(policy)
+        return np.random.choice(self.action_size, 1, p=policy)[0]
+
+    # calculate discounted rewards
+    def discount_rewards(self, rewards):
+        discounted_rewards = np.zeros_like(rewards)
+        running_add = 0
+        for t in reversed(range(0, len(rewards))):
+            running_add = running_add * self.discount_factor + rewards[t]
+            discounted_rewards[t] = running_add
+        return discounted_rewards
+
+    # save states, actions and rewards for an episode
+    def append_sample(self, state, action, reward):
+        self.states.append(state[0])
+        self.rewards.append(reward)
+        act = np.zeros(self.action_size)
+        act[action] = 1
+        self.actions.append(act)
+
+    # update policy neural network
+    def train_model(self):
+        discounted_rewards = np.float32(self.discount_rewards(self.rewards))
+        discounted_rewards -= np.mean(discounted_rewards)
+        discounted_rewards /= 0.00001 + np.std(discounted_rewards)
+
+        self.optimizer([self.states, self.actions, discounted_rewards])
+        self.states, self.actions, self.rewards = [], [], []
 
 
 
